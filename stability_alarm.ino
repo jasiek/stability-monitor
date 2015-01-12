@@ -6,15 +6,14 @@ const int ledPin = 13;
 
 int xx, yy, zz;
 
-unsigned int tcnt2;
 unsigned int counter;
+int moving = 0;
 
 void setup() {
   Serial.begin(57600);
   Serial.println("start");
   pinMode(ledPin, OUTPUT);
-  pinMode(rfPin, OUTPUT);
-  randomSeed(analogRead(3));
+  Serial.end();
   setupTimer();
 }
 
@@ -30,7 +29,7 @@ int readMovement() {
    return diff;
 }
 
-int isMoving() {
+int movementDetected() {
   return readMovement() > 20;
 }
 
@@ -50,38 +49,43 @@ void setupTimer() {
  
   /* Now configure the prescaler to CPU clock divided by 1024 */
   TCCR2B |= (1<<CS22) | (1<<CS21) | (1<<CS20);
-
-  tcnt2 = 0; 
- 
-  /* Finally load end enable the timer */
-  TCNT2 = tcnt2;
-  TIMSK2 |= (1<<TOIE2);
 }
 
 ISR(TIMER2_OVF_vect) {
-  counter++;
-  TCNT2 = tcnt2;
+  if (counter++ > 200) {
+    stopTimer();
+    moving = 0;
+    digitalWrite(ledPin, LOW);
+  }
 }
 
 void resetTimer() {
+  Serial.println("resetTimer");
   counter = 0;
-  TCNT2 = tcnt2;
 }
 
-void transmit(int value) {
-  tone(rfPin, 1000, value);
+void startTimer() {
+  Serial.println("startTimer");
+  TCNT2 = 0;
+  counter = 0;
+  moving = 1;
+  TIMSK2 |= (1<<TOIE2);
+}
+
+void stopTimer() {
+  Serial.println("stopTimer");
+  TIMSK2 &= ~(1<<TOIE2);
 }
 
 void loop() {
-  if (isMoving()) {
-    transmit(readMovement());
-    resetTimer();
-    // digitalWrite(ledPin, HIGH);
-  } else {
-    if (counter > 200) {
-      digitalWrite(ledPin, LOW);
+  if (movementDetected()) {
+    if (moving) {
+      resetTimer();
+    } else {
+      startTimer();
     }
-
+    
+    digitalWrite(ledPin, HIGH);
   }
-  delay(200);
+  delay(100);
 }
